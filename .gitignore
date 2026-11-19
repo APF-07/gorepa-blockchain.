@@ -1,0 +1,25 @@
+blockchain/dev/node_modules/
+blockchain/dev/fixture.json
+
+# Credenciales y variables privadas
+/config/database.php
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Documentos y datos locales
+/storage/
+/database/*.sql
+*.pdf
+*.log
+
+# Recuperación de acceso local
+/recuperar-acceso.php
+
+# Dependencias y archivos generados
+**/node_modules/
+/blockchain/dev/fixture.json
+*.zip
+/DOCUMENTACION_INFORME/

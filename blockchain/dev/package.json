@@ -1,0 +1,20 @@
+{
+  "name": "gorepa-blockchain-dev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "node compile.mjs",
+    "test": "node --test contract.test.mjs browser.test.mjs",
+    "test:server": "C:/xampp/php/php.exe server.test.php",
+    "test:integration": "C:/xampp/php/php.exe integration.test.php",
+    "test:qr": "node --test qr.test.mjs",
+    "test:public": "C:/xampp/php/php.exe public.test.php"
+  },
+  "devDependencies": {
+    "@zxing/library": "0.21.3",
+    "ethers": "6.15.0",
+    "ganache": "7.9.2",
+    "qrcode-generator": "1.4.4",
+    "solc": "0.8.34"
+  }
+}

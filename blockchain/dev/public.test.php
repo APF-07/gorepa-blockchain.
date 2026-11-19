@@ -1,0 +1,25 @@
+<?php
+if(PHP_SAPI!=='cli')exit;
+require __DIR__.'/server.test.php';
+require __DIR__.'/../../includes/consulta-publica.php';
+$baseRpc=rpcFixture($f);
+$rpc=static function(string $m,array $p)use($baseRpc,$f){if($m==='eth_call' && str_starts_with($p[0]['data'],$f['protocol']['supersededSelector']))return '0x'.str_repeat('0',64);return $baseRpc($m,$p);};
+$result=resultadoPublicoBlockchain($f['document'],$f['txHash'],$f['config'],$rpc);
+ok($result['estado']==='verificado' && $result['tx']===$f['txHash'] && $result['unix']>0,'Ficha verde exige prueba valida y muestra tiempo de bloque');
+$result=resultadoPublicoBlockchain($f['document'],$f['txHash'],$f['config'],$baseRpc);
+ok($result['estado']==='reemplazado','Registro sustituido no se presenta como activo');
+$d=$f['document'];$d['file_hash']=str_repeat('f',64);
+$result=resultadoPublicoBlockchain($d,$f['txHash'],$f['config'],$rpc);
+ok($result['estado']==='no_verificado','Huella diferente no produce ficha verificada');
+$result=resultadoPublicoBlockchain($f['document'],$f['txHash'],$f['config'],static function(){throw new RuntimeException('fallo simulado');});
+ok($result['estado']==='no_disponible','Caida RPC no se presenta como documento alterado o verificado');
+$result=resultadoPublicoBlockchain($f['document'],null,$f['config'],static function(){throw new RuntimeException('No debe llamar RPC');});
+ok($result['estado']==='pendiente','Sin transaccion confirmada no declara verificacion');
+$old=getenv('GOREPA_PUBLIC_BASE_URL');putenv('GOREPA_PUBLIC_BASE_URL');
+$url=urlConsultaPublica(str_repeat('a',64),['SERVER_ADDR'=>'192.168.1.20','SERVER_PORT'=>8080,'HTTP_HOST'=>'malicioso.example']);
+ok(str_starts_with($url,'http://192.168.1.20:8080/') && !str_contains($url,'malicioso'),'QR local usa direccion de servidor y no Host arbitrario');
+putenv('GOREPA_PUBLIC_BASE_URL=https://demo.example/gorepa_blockchain');
+ok(str_starts_with(urlConsultaPublica(str_repeat('a',64),[]),'https://demo.example/gorepa_blockchain/consulta-publica.php'),'Base publica configurable para un despliegue futuro');
+putenv('GOREPA_PUBLIC_BASE_URL=https://usuario:secreto@demo.example/');
+rejects(fn()=>baseConsultaPublica([]),'URL con credenciales rechazada');
+if($old===false)putenv('GOREPA_PUBLIC_BASE_URL');else putenv('GOREPA_PUBLIC_BASE_URL='.$old);

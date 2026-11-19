@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import ganache from 'ganache';
+import { BrowserProvider, ContractFactory, ZeroHash, Interface } from 'ethers';
+import { compile,artifacts,root } from './compile.mjs';
+const bytes = value => '0x'+value.repeat(64);
+test('Contrato GOREPA y recibo para validar en PHP', async t=>{
+ const evm=ganache.provider({logging:{quiet:true},chain:{chainId:11155111,hardfork:'shanghai'},wallet:{totalAccounts:3}});
+ const provider=new BrowserProvider(evm);provider.pollingInterval=50;
+ try {
+ const owner=await provider.getSigner(0),operator=await provider.getSigner(1),outsider=await provider.getSigner(2);
+ const compiled=compile(); const protocol=artifacts(compiled);
+ const contract=await new ContractFactory(compiled.abi,compiled.evm.bytecode.object,owner).deploy();await contract.waitForDeployment();
+ const a=bytes('1'),file=bytes('2'),meta=bytes('3');
+ const tx=await contract.registerDocument(a,file,meta,ZeroHash);const receipt=await tx.wait();
+ await t.test('Registro y consulta',async()=>assert.equal((await contract.getDocument(a)).fileHash,file));
+ await t.test('Verificación verdadera y falsa',async()=>{assert.equal(await contract.verifyDocument(a,file),true);assert.equal(await contract.verifyDocument(a,bytes('4')),false);});
+ await t.test('Identificador duplicado',async()=>assert.rejects(contract.registerDocument.staticCall(a,bytes('4'),meta,ZeroHash),/DuplicateDocument/));
+ await t.test('Hash duplicado',async()=>assert.rejects(contract.registerDocument.staticCall(bytes('5'),file,meta,ZeroHash),/DuplicateFile/));
+ await t.test('Billetera no autorizada',async()=>assert.rejects(contract.connect(operator).registerDocument.staticCall(bytes('5'),bytes('6'),meta,ZeroHash),/Unauthorized/));
+ await (await contract.setOperator(await operator.getAddress(),true)).wait();
+ await t.test('Operador autorizado registra',async()=>{await (await contract.connect(operator).registerDocument(bytes('5'),bytes('6'),meta,ZeroHash)).wait();});
+ await (await contract.setOperator(await operator.getAddress(),false)).wait();
+ await t.test('Revocación bloquea',async()=>assert.rejects(contract.connect(operator).registerDocument.staticCall(bytes('8'),bytes('9'),meta,ZeroHash),/Unauthorized/));
+ await (await contract.registerDocument(bytes('a'),bytes('b'),bytes('c'),a)).wait();
+ await t.test('Sustitución conserva historial',async()=>{assert.equal(await contract.supersededBy(a),bytes('a'));assert.equal((await contract.getDocument(a)).fileHash,file);});
+ await t.test('No permite bifurcar sustitución',async()=>assert.rejects(contract.registerDocument.staticCall(bytes('d'),bytes('e'),meta,a),/AlreadySuperseded/));
+ await t.test('Anterior desconocido',async()=>assert.rejects(contract.registerDocument.staticCall(bytes('d'),bytes('e'),meta,bytes('f')),/UnknownPreviousDocument/));
+ await t.test('Solo dueño autoriza',async()=>assert.rejects(contract.connect(outsider).setOperator.staticCall(await operator.getAddress(),true),/Unauthorized/));
+ const address=await contract.getAddress();
+ const rawTx=await evm.request({method:'eth_getTransactionByHash',params:[tx.hash]});
+ const rawReceipt=await evm.request({method:'eth_getTransactionReceipt',params:[tx.hash]});
+ const block=await evm.request({method:'eth_getBlockByNumber',params:[rawReceipt.blockNumber,false]});
+ const iface=new Interface(compiled.abi);
+ const call=await evm.request({method:'eth_call',params:[{to:address,data:iface.encodeFunctionData('getDocument',[a])},'latest']});
+ const fixture={config:{address:address.toLowerCase(),rpc:'https://example.invalid',confirmations:2},document:{id:1,document_id:a.slice(2),file_hash:file.slice(2),metadata_hash:meta.slice(2)},txHash:tx.hash,tx:rawTx,receipt:rawReceipt,block,code:await evm.request({method:'eth_getCode',params:[address,'latest']}),latest:await evm.request({method:'eth_blockNumber',params:[]}),call,protocol};
+ fs.writeFileSync(path.join(root,'blockchain/dev/fixture.json'),JSON.stringify(fixture,null,2));
+ await (await contract.transferOwnership(await operator.getAddress())).wait();
+ await t.test('Transferencia de dueño en dos pasos',async()=>{assert.equal(await contract.owner(),await owner.getAddress());await(await contract.connect(operator).acceptOwnership()).wait();assert.equal(await contract.owner(),await operator.getAddress());assert.equal(await contract.isOperator(await owner.getAddress()),false);});
+ }finally{provider.destroy();await evm.disconnect();}
+});

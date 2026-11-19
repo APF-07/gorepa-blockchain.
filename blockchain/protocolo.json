@@ -1,0 +1,10 @@
+{
+  "compiler": "0.8.34+commit.80d5c536.Emscripten.clang",
+  "optimizerRuns": 200,
+  "evmVersion": "paris",
+  "sourceHash": "403f2e5c82f2f5c8170f36905f353cb3176809c8deee1de9d91cb1d6cbe35e89",
+  "registerSelector": "0x651e882f",
+  "getSelector": "0xb10d6b41",
+  "supersededSelector": "0x1ceb83e9",
+  "eventTopic": "0xd1b5ad14e3dbc856dc862f4f6b0abd0929408aedbfc2dc60c275074d0584fcb0"
+}
