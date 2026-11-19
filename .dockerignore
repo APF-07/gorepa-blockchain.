@@ -1,0 +1,13 @@
+.git
+**/node_modules
+config/database.php
+storage
+database
+recuperar-acceso.php
+.env
+.env.*
+*.zip
+*.pdf
+DOCUMENTACION_INFORME
+docs
+blockchain/dev
